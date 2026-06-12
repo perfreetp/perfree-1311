@@ -33,8 +33,8 @@ const ticketTypeColor: Record<string, string> = {
 }
 
 const ticketStatusColor: Record<string, string> = {
-  待处理: 'bg-amber-100 text-amber-700',
-  处理中: 'bg-blue-100 text-blue-700',
+  未收款: 'bg-red-100 text-red-700',
+  处理中: 'bg-amber-100 text-amber-700',
   已完成: 'bg-emerald-100 text-emerald-700',
 }
 
@@ -121,7 +121,7 @@ export default function Service() {
       seat: ticketForm.seat,
       type: ticketForm.type,
       amount: amountNum,
-      status: '待处理',
+      status: '已完成',
     })
     setTicketForm({ passenger: '', carriage: '', seat: '', type: '无票乘车', amount: '' })
     setTicketAmountError(false)
@@ -180,6 +180,7 @@ export default function Service() {
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">拾得位置</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">拾得时间</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">状态</th>
+                    <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">交接状态</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">处理人</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">操作</th>
                   </tr>
@@ -187,7 +188,7 @@ export default function Service() {
                 <tbody>
                   {lostItems.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-10 text-slate-400 text-sm">
+                      <td colSpan={7} className="text-center py-10 text-slate-400 text-sm">
                         暂无遗失物记录
                       </td>
                     </tr>
@@ -201,6 +202,21 @@ export default function Service() {
                           <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${lostStatusColor[item.status]}`}>
                             {item.status}
                           </span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {item.handoverInfo ? (
+                            item.handoverInfo.confirmer ? (
+                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700" title={`确认人：${item.handoverInfo.confirmer} · ${item.handoverInfo.confirmTime}`}>
+                                已交接
+                              </span>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+                                待交接
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-slate-300 text-xs">-</span>
+                          )}
                         </td>
                         <td className="px-5 py-3.5 text-sm text-slate-600">{item.handler || '-'}</td>
                         <td className="px-5 py-3.5">
@@ -356,13 +372,14 @@ export default function Service() {
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">类型</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">金额</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">状态</th>
+                    <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">交接状态</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ticketSupplements.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-10 text-slate-400 text-sm">
+                      <td colSpan={8} className="text-center py-10 text-slate-400 text-sm">
                         暂无补票记录
                       </td>
                     </tr>
@@ -384,12 +401,27 @@ export default function Service() {
                           </span>
                         </td>
                         <td className="px-5 py-3.5">
+                          {t.handoverInfo ? (
+                            t.handoverInfo.confirmer ? (
+                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700" title={`确认人：${t.handoverInfo.confirmer}`}>
+                                已交接
+                              </span>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+                                待交接
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-slate-300 text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
                           <select
                             value={t.status}
                             onChange={(e) => updateTicketSupplementStatus(t.id, e.target.value as any)}
                             className="text-xs border border-slate-200 rounded px-2 py-1 text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400"
                           >
-                            <option value="待处理">待处理</option>
+                            <option value="未收款">未收款</option>
                             <option value="处理中">处理中</option>
                             <option value="已完成">已完成</option>
                           </select>
@@ -441,6 +473,18 @@ export default function Service() {
                           {expandedComplaint === c.id && (
                             <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
                               <p className="text-sm text-slate-700">{c.content}</p>
+                              {c.handoverInfo && (
+                                <div className="bg-blue-50 rounded-lg p-2.5 flex items-center gap-2">
+                                  <span className="text-xs text-blue-600 font-medium">
+                                    {c.handoverInfo.confirmer
+                                      ? `已交接 · 确认人：${c.handoverInfo.confirmer}`
+                                      : '待交接 · 已关联交接备注'}
+                                  </span>
+                                  {c.handoverInfo.confirmTime && (
+                                    <span className="text-xs text-blue-400">· {c.handoverInfo.confirmTime}</span>
+                                  )}
+                                </div>
+                              )}
                               {c.result && (
                                 <div className="bg-slate-50 rounded-lg p-3">
                                   <p className="text-xs text-slate-500 mb-1">处理结果</p>

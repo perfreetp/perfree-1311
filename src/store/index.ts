@@ -163,7 +163,7 @@ const mockLostItems: LostItem[] = [
 const mockTicketSupplements: TicketSupplement[] = [
   { id: '1', passenger: '王先生', carriage: '6', seat: '8D', type: '无票乘车', amount: 553, status: '已完成' },
   { id: '2', passenger: '陈女士', carriage: '10', seat: '15A', type: '越站乘车', amount: 156, status: '处理中' },
-  { id: '3', passenger: '刘先生', carriage: '14', seat: '3C', type: '变更席别', amount: 230, status: '待处理' },
+  { id: '3', passenger: '刘先生', carriage: '14', seat: '3C', type: '变更席别', amount: 230, status: '未收款' },
 ]
 
 const mockComplaints: Complaint[] = [
@@ -430,14 +430,45 @@ export const useStore = create<TrainCrewState>((set, get) => ({
 
   addHandoverNote: (note) => set((state) => {
     const next = { ...state, handoverNotes: [...state.handoverNotes, note] }
+    if (note.relatedItems && note.relatedItems.length > 0) {
+      next.emergencyReports = state.emergencyReports.map(e => {
+        const related = note.relatedItems!.find(r => r.type === '异常上报' && r.id === e.id)
+        return related ? { ...e, handoverInfo: { noteId: note.id } } : e
+      })
+      next.complaints = state.complaints.map(c => {
+        const related = note.relatedItems!.find(r => r.type === '投诉记录' && r.id === c.id)
+        return related ? { ...c, handoverInfo: { noteId: note.id } } : c
+      })
+      next.lostItems = state.lostItems.map(l => {
+        const related = note.relatedItems!.find(r => r.type === '遗失物品' && r.id === l.id)
+        return related ? { ...l, handoverInfo: { noteId: note.id } } : l
+      })
+    }
     saveToStorage(next)
     return next
   }),
 
   confirmHandoverNote: (id, confirmer) => set((state) => {
+    const note = state.handoverNotes.find(n => n.id === id)
+    const confirmTime = new Date().toLocaleString('zh-CN')
     const next = {
       ...state,
-      handoverNotes: state.handoverNotes.map(n => n.id === id ? { ...n, confirmed: true, confirmer } : n)
+      handoverNotes: state.handoverNotes.map(n => n.id === id ? { ...n, confirmed: true, confirmer } : n),
+    }
+    if (note && note.relatedItems && note.relatedItems.length > 0) {
+      const info = { noteId: id, confirmer, confirmTime }
+      next.emergencyReports = state.emergencyReports.map(e => {
+        const related = note.relatedItems!.find(r => r.type === '异常上报' && r.id === e.id)
+        return related ? { ...e, handoverInfo: info } : e
+      })
+      next.complaints = state.complaints.map(c => {
+        const related = note.relatedItems!.find(r => r.type === '投诉记录' && r.id === c.id)
+        return related ? { ...c, handoverInfo: info } : c
+      })
+      next.lostItems = state.lostItems.map(l => {
+        const related = note.relatedItems!.find(r => r.type === '遗失物品' && r.id === l.id)
+        return related ? { ...l, handoverInfo: info } : l
+      })
     }
     saveToStorage(next)
     return next

@@ -61,6 +61,12 @@ export interface StationStop {
   tasks: StationTask[]
 }
 
+export interface HandoverInfo {
+  noteId: string
+  confirmer?: string
+  confirmTime?: string
+}
+
 export interface LostItem {
   id: string
   description: string
@@ -68,6 +74,7 @@ export interface LostItem {
   foundTime: string
   status: '待认领' | '已登记' | '已移交' | '已归还'
   handler: string
+  handoverInfo?: HandoverInfo
 }
 
 export interface TicketSupplement {
@@ -77,7 +84,8 @@ export interface TicketSupplement {
   seat: string
   type: '无票乘车' | '越站乘车' | '变更席别'
   amount: number
-  status: '待处理' | '处理中' | '已完成'
+  status: '未收款' | '处理中' | '已完成'
+  handoverInfo?: HandoverInfo
 }
 
 export interface Complaint {
@@ -90,6 +98,7 @@ export interface Complaint {
   handler: string
   result: string
   time: string
+  handoverInfo?: HandoverInfo
 }
 
 export interface FoodItem {
@@ -120,6 +129,7 @@ export interface EmergencyReport {
   severity: 'low' | 'medium' | 'high' | 'critical'
   status: '上报中' | '处理中' | '已处理'
   reporter: string
+  handoverInfo?: HandoverInfo
 }
 
 export interface BroadcastItem {

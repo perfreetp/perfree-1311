@@ -16,6 +16,10 @@ import {
   MessageSquareWarning,
   Package,
   Link2,
+  LayoutDashboard,
+  AlertOctagon,
+  Megaphone,
+  ChevronRight,
 } from 'lucide-react'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -82,9 +86,11 @@ export default function Handover() {
     complaints,
     lostItems,
     foodItems,
+    broadcastItems,
+    ticketSupplements,
   } = useStore()
 
-  const [activeTab, setActiveTab] = useState<'notes' | 'evaluation'>('notes')
+  const [activeTab, setActiveTab] = useState<'overview' | 'notes' | 'evaluation'>('overview')
   const [showForm, setShowForm] = useState(false)
   const [formContent, setFormContent] = useState('')
   const [formCategory, setFormCategory] = useState(CATEGORIES[0])
@@ -172,6 +178,17 @@ export default function Handover() {
 
         <div className="mb-6 flex gap-1 rounded-xl bg-white p-1 shadow-sm">
           <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'overview'
+                ? 'bg-[#1a365d] text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <LayoutDashboard size={16} />
+            交班总览
+          </button>
+          <button
             onClick={() => setActiveTab('notes')}
             className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'notes'
@@ -194,6 +211,205 @@ export default function Handover() {
             退乘评价
           </button>
         </div>
+
+        {activeTab === 'overview' && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {[
+                { label: '未处理异常', count: emergencyReports.filter(e => e.status !== '已处理').length, Icon: AlertOctagon, color: 'bg-red-500', bg: 'bg-red-50', text: 'text-red-700' },
+                { label: '未解决投诉', count: complaints.filter(c => c.status !== '已解决').length, Icon: MessageSquareWarning, color: 'bg-amber-500', bg: 'bg-amber-50', text: 'text-amber-700' },
+                { label: '待认领遗失物', count: lostItems.filter(l => l.status === '待认领' || l.status === '已登记').length, Icon: PackageSearch, color: 'bg-blue-500', bg: 'bg-blue-50', text: 'text-blue-700' },
+                { label: '低库存餐品', count: foodItems.filter(f => f.stock <= f.threshold).length, Icon: Package, color: 'bg-orange-500', bg: 'bg-orange-50', text: 'text-orange-700' },
+                { label: '待播广播', count: broadcastItems.filter(b => !b.broadcasted).length, Icon: Megaphone, color: 'bg-purple-500', bg: 'bg-purple-50', text: 'text-purple-700' },
+              ].map(({ label, count, Icon, bg, text }) => (
+                <div key={label} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className={`w-5 h-5 ${text}`} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">{label}</p>
+                      <p className={`text-2xl font-bold ${text}`}>{count}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-[#1a365d] flex items-center gap-2">
+                    <AlertOctagon className="w-4 h-4 text-red-500" />
+                    未处理异常
+                  </h3>
+                  <span className="text-xs text-slate-400">{emergencyReports.filter(e => e.status !== '已处理').length} 项
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-auto">
+                  {emergencyReports.filter(e => e.status !== '已处理').length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-6">暂无未处理异常</p>
+                  ) : (
+                    emergencyReports.filter(e => e.status !== '已处理').map(e => (
+                      <div key={e.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700 truncate">{e.type}</p>
+                          <p className="text-xs text-slate-500">{e.location} · {e.time}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {e.handoverInfo ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                              {e.handoverInfo.confirmer ? '已交接' : '待交接'}
+                            </span>
+                          ) : null}
+                          <span className="text-xs text-amber-600 whitespace-nowrap">{e.status}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-[#1a365d] flex items-center gap-2">
+                    <MessageSquareWarning className="w-4 h-4 text-amber-500" />
+                    未解决投诉
+                  </h3>
+                  <span className="text-xs text-slate-400">{complaints.filter(c => c.status !== '已解决').length} 项
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-auto">
+                  {complaints.filter(c => c.status !== '已解决').length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-6">暂无未解决投诉</p>
+                  ) : (
+                    complaints.filter(c => c.status !== '已解决').map(c => (
+                      <div key={c.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700 truncate">{c.content}</p>
+                          <p className="text-xs text-slate-500">{c.passenger} · {c.category}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {c.handoverInfo ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                              {c.handoverInfo.confirmer ? '已交接' : '待交接'}
+                            </span>
+                          ) : null}
+                          <span className="text-xs text-amber-600 whitespace-nowrap">{c.status}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-[#1a365d] flex items-center gap-2">
+                    <PackageSearch className="w-4 h-4 text-blue-500" />
+                    待认领遗失物
+                  </h3>
+                  <span className="text-xs text-slate-400">{lostItems.filter(l => l.status === '待认领' || l.status === '已登记').length} 项
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-auto">
+                  {lostItems.filter(l => l.status === '待认领' || l.status === '已登记').length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-6">暂无待认领遗失物</p>
+                  ) : (
+                    lostItems.filter(l => l.status === '待认领' || l.status === '已登记').map(l => (
+                      <div key={l.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700 truncate">{l.description}</p>
+                          <p className="text-xs text-slate-500">{l.location}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {l.handoverInfo ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">
+                              {l.handoverInfo.confirmer ? '已交接' : '待交接'}
+                            </span>
+                          ) : null}
+                          <span className="text-xs text-blue-600 whitespace-nowrap">{l.status}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-[#1a365d] flex items-center gap-2">
+                    <Package className="w-4 h-4 text-orange-500" />
+                    低库存餐品
+                  </h3>
+                  <span className="text-xs text-slate-400">{foodItems.filter(f => f.stock <= f.threshold).length} 项
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-auto">
+                  {foodItems.filter(f => f.stock <= f.threshold).length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-6">库存充足</p>
+                  ) : (
+                    foodItems.filter(f => f.stock <= f.threshold).map(f => (
+                      <div key={f.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700">{f.name}</p>
+                          <p className="text-xs text-slate-500">{f.category} · 库存 {f.stock}</p>
+                        </div>
+                        <span className={`text-xs whitespace-nowrap px-2 py-0.5 rounded-full ${
+                          f.stock <= f.threshold / 2 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {f.stock <= f.threshold / 2 ? '严重不足' : '库存偏低'}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-[#1a365d] flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-purple-500" />
+                  待播广播
+                </h3>
+                <span className="text-xs text-slate-400">{broadcastItems.filter(b => !b.broadcasted).length} 条</span>
+              </div>
+              <div className="space-y-2 max-h-[160px] overflow-auto">
+                {broadcastItems.filter(b => !b.broadcasted).length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-6">全部广播已播放</p>
+                ) : (
+                  broadcastItems.filter(b => !b.broadcasted).map(b => (
+                    <div key={b.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-700 truncate">{b.content}</p>
+                        <p className="text-xs text-slate-500">{b.category} · 计划 {b.scheduledTime}</p>
+                      </div>
+                      <span className="text-xs text-slate-500 whitespace-nowrap">待播放</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setActiveTab('notes')}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                查看交接备注
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => { setShowForm(true); setActiveTab('notes'); }}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#3b82f6] rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                新增交接备注
+              </button>
+            </div>
+          </div>
+        )}
 
         {activeTab === 'notes' && (
           <div className="space-y-4">

@@ -124,11 +124,10 @@ function StockTab({ foodItems, updateFoodStock, categoryFilter, setCategoryFilte
 type TimeFilter = '全部' | '最近1小时' | '上午' | '下午'
 type PaymentFilter = '全部' | SalesRecordType['payment']
 
-function SalesTab({ foodItems, salesRecords, addSalesRecord, updateFoodStock }: {
+function SalesTab({ foodItems, salesRecords, addSalesRecord }: {
   foodItems: FoodItem[]
   salesRecords: SalesRecordType[]
   addSalesRecord: (record: SalesRecordType) => boolean
-  updateFoodStock: (id: string, delta: number) => void
 }) {
   const [selectedItem, setSelectedItem] = useState('')
   const [quantity, setQuantity] = useState(1)
@@ -202,17 +201,16 @@ function SalesTab({ foodItems, salesRecords, addSalesRecord, updateFoodStock }: 
 
     const success = addSalesRecord(record)
     if (!success) {
-      setErrorMsg('库存不足')
-      setTimeout(() => setErrorMsg(''), 3000)
+      setErrorMsg(`库存不足（仅剩 ${selectedFood.stock} 份），请减少数量或更换餐品`)
+      setTimeout(() => setErrorMsg(''), 4000)
       return
     }
-
-    updateFoodStock(selectedFood.id, -quantity)
 
     setSelectedItem('')
     setQuantity(1)
     setPayment('微信')
     setCarriage('')
+    setErrorMsg('')
   }
 
   return (
@@ -471,7 +469,6 @@ export default function Catering() {
           foodItems={foodItems}
           salesRecords={salesRecords}
           addSalesRecord={addSalesRecord}
-          updateFoodStock={updateFoodStock}
         />
       )}
     </div>

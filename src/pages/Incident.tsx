@@ -22,6 +22,11 @@ type EmergencyReport = {
   severity: 'low' | 'medium' | 'high' | 'critical'
   status: '上报中' | '处理中' | '已处理'
   reporter: string
+  handoverInfo?: {
+    noteId: string
+    confirmer?: string
+    confirmTime?: string
+  }
 }
 
 type BroadcastItem = {
@@ -237,6 +242,19 @@ export default function Incident() {
                   </div>
 
                   <p className="mb-3 text-sm text-slate-700">{report.description}</p>
+
+                  {report.handoverInfo && (
+                    <div className="mb-3 flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2">
+                      <span className="text-xs text-blue-600 font-medium">
+                        {report.handoverInfo.confirmer
+                          ? `已交接 · 确认人：${report.handoverInfo.confirmer}`
+                          : '待交接 · 已关联交接备注'}
+                      </span>
+                      {report.handoverInfo.confirmTime && (
+                        <span className="text-xs text-blue-400">· {report.handoverInfo.confirmTime}</span>
+                      )}
+                    </div>
+                  )}
 
                   {report.status !== '已处理' && (
                     <button
