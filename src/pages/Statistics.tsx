@@ -167,7 +167,7 @@ export default function Statistics() {
           content: `${t.type} - ${t.passenger}`,
           category: t.type,
           location: `${t.carriage}车${t.seat}座`,
-          time: '-',
+          time: t.registrationTime || '-',
           status: t.status,
           handler: '-',
           amount: t.amount,
@@ -196,6 +196,12 @@ export default function Statistics() {
 
     if (filterType === '全部' || filterType === '低库存') {
       foodItems.filter(f => f.stock <= f.threshold).forEach(f => {
+        const ho = f.handoverInfo
+        let displayTime = '-'
+        if (ho?.confirmTime) {
+          const match = ho.confirmTime.match(/(\d{1,2}):(\d{2})/)
+          if (match) displayTime = `${match[1]}:${match[2]}`
+        }
         rows.push({
           id: f.id,
           type: '低库存',
@@ -203,9 +209,12 @@ export default function Statistics() {
           content: `${f.name}（库存${f.stock}，阈值${f.threshold}）`,
           category: f.category,
           location: '餐车',
-          time: '-',
+          time: displayTime,
           status: f.stock <= f.threshold / 2 ? '严重不足' : '库存偏低',
           handler: '-',
+          handoverConfirmed: ho?.confirmer ? true : ho?.noteId ? false : undefined,
+          handoverConfirmer: ho?.confirmer,
+          handoverTime: ho?.confirmTime,
         })
       })
     }
@@ -245,7 +254,7 @@ export default function Statistics() {
     if (filterTimeRange !== '全部') {
       const now = new Date()
       filtered = filtered.filter(r => {
-        if (!r.time || r.time === '-') return filterTimeRange === '全部'
+        if (!r.time || r.time === '-') return false
         const parts = r.time.split(/[:：]/)
         if (parts.length < 2) return true
         const hh = parseInt(parts[0])

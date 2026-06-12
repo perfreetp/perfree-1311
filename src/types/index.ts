@@ -85,6 +85,7 @@ export interface TicketSupplement {
   type: '无票乘车' | '越站乘车' | '变更席别'
   amount: number
   status: '未收款' | '处理中' | '已完成'
+  registrationTime?: string
   handoverInfo?: HandoverInfo
 }
 
@@ -108,6 +109,7 @@ export interface FoodItem {
   stock: number
   price: number
   threshold: number
+  handoverInfo?: HandoverInfo
 }
 
 export interface SalesRecord {
@@ -156,6 +158,7 @@ export interface HandoverNote {
   time: string
   confirmed: boolean
   confirmer?: string
+  confirmTime?: string
   relatedItems?: RelatedItem[]
 }
 

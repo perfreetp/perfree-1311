@@ -371,6 +371,7 @@ export default function Service() {
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">座位</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">类型</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">金额</th>
+                    <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">登记时间</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">状态</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">交接状态</th>
                     <th className="text-left px-5 py-3 text-sm font-semibold text-slate-600">操作</th>
@@ -379,7 +380,7 @@ export default function Service() {
                 <tbody>
                   {ticketSupplements.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-10 text-slate-400 text-sm">
+                      <td colSpan={9} className="text-center py-10 text-slate-400 text-sm">
                         暂无补票记录
                       </td>
                     </tr>
@@ -395,6 +396,7 @@ export default function Service() {
                           </span>
                         </td>
                         <td className="px-5 py-3.5 text-sm font-medium text-slate-800">¥{t.amount}</td>
+                        <td className="px-5 py-3.5 text-sm text-slate-500">{t.registrationTime || '-'}</td>
                         <td className="px-5 py-3.5">
                           <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${ticketStatusColor[t.status]}`}>
                             {t.status}

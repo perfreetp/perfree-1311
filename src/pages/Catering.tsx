@@ -96,6 +96,19 @@ function StockTab({ foodItems, updateFoodStock, categoryFilter, setCategoryFilte
                 />
               </div>
 
+              {item.handoverInfo && (
+                <div className="mb-3 bg-blue-50 rounded-lg p-2 flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] text-blue-600 font-medium">
+                    {item.handoverInfo.confirmer
+                      ? `已交接 · ${item.handoverInfo.confirmer}`
+                      : '待交接 · 已关联备注'}
+                  </span>
+                  {item.handoverInfo.confirmTime && (
+                    <span className="text-[10px] text-blue-400">{item.handoverInfo.confirmTime}</span>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <span className="text-blue-600 font-bold text-base">¥{item.price}</span>
                 <div className="flex items-center gap-1">

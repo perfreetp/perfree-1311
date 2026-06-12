@@ -161,9 +161,9 @@ const mockLostItems: LostItem[] = [
 ]
 
 const mockTicketSupplements: TicketSupplement[] = [
-  { id: '1', passenger: '王先生', carriage: '6', seat: '8D', type: '无票乘车', amount: 553, status: '已完成' },
-  { id: '2', passenger: '陈女士', carriage: '10', seat: '15A', type: '越站乘车', amount: 156, status: '处理中' },
-  { id: '3', passenger: '刘先生', carriage: '14', seat: '3C', type: '变更席别', amount: 230, status: '未收款' },
+  { id: '1', passenger: '王先生', carriage: '6', seat: '8D', type: '无票乘车', amount: 553, status: '已完成', registrationTime: '08:15' },
+  { id: '2', passenger: '陈女士', carriage: '10', seat: '15A', type: '越站乘车', amount: 156, status: '处理中', registrationTime: '09:05' },
+  { id: '3', passenger: '刘先生', carriage: '14', seat: '3C', type: '变更席别', amount: 230, status: '未收款', registrationTime: '10:20' },
 ]
 
 const mockComplaints: Complaint[] = [
@@ -340,7 +340,11 @@ export const useStore = create<TrainCrewState>((set, get) => ({
   }),
 
   addTicketSupplement: (ticket) => set((state) => {
-    const next = { ...state, ticketSupplements: [...state.ticketSupplements, ticket] }
+    const enriched: TicketSupplement = {
+      ...ticket,
+      registrationTime: ticket.registrationTime || new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+    }
+    const next = { ...state, ticketSupplements: [...state.ticketSupplements, enriched] }
     saveToStorage(next)
     return next
   }),
@@ -443,6 +447,10 @@ export const useStore = create<TrainCrewState>((set, get) => ({
         const related = note.relatedItems!.find(r => r.type === '遗失物品' && r.id === l.id)
         return related ? { ...l, handoverInfo: { noteId: note.id } } : l
       })
+      next.foodItems = state.foodItems.map(f => {
+        const related = note.relatedItems!.find(r => r.type === '低库存' && r.id === f.id)
+        return related ? { ...f, handoverInfo: { noteId: note.id } } : f
+      })
     }
     saveToStorage(next)
     return next
@@ -453,7 +461,7 @@ export const useStore = create<TrainCrewState>((set, get) => ({
     const confirmTime = new Date().toLocaleString('zh-CN')
     const next = {
       ...state,
-      handoverNotes: state.handoverNotes.map(n => n.id === id ? { ...n, confirmed: true, confirmer } : n),
+      handoverNotes: state.handoverNotes.map(n => n.id === id ? { ...n, confirmed: true, confirmer, confirmTime } : n),
     }
     if (note && note.relatedItems && note.relatedItems.length > 0) {
       const info = { noteId: id, confirmer, confirmTime }
@@ -468,6 +476,10 @@ export const useStore = create<TrainCrewState>((set, get) => ({
       next.lostItems = state.lostItems.map(l => {
         const related = note.relatedItems!.find(r => r.type === '遗失物品' && r.id === l.id)
         return related ? { ...l, handoverInfo: info } : l
+      })
+      next.foodItems = state.foodItems.map(f => {
+        const related = note.relatedItems!.find(r => r.type === '低库存' && r.id === f.id)
+        return related ? { ...f, handoverInfo: info } : f
       })
     }
     saveToStorage(next)
