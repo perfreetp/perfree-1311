@@ -5,7 +5,9 @@ import type {
   SalesRecord, EmergencyReport, BroadcastItem, HandoverNote, SignOffEvaluation
 } from '@/types'
 
-interface TrainCrewState {
+const STORAGE_KEY = 'train-crew-data'
+
+interface PersistedData {
   trainTask: TrainTask
   crewMembers: CrewMember[]
   keyPassengers: KeyPassenger[]
@@ -21,7 +23,9 @@ interface TrainCrewState {
   broadcastItems: BroadcastItem[]
   handoverNotes: HandoverNote[]
   signOffEvaluation: SignOffEvaluation
+}
 
+interface TrainCrewState extends PersistedData {
   signInCrew: (id: string) => void
   addPatrolRecord: (record: PatrolRecord) => void
   addHygieneCheck: (check: HygieneCheck) => void
@@ -33,7 +37,7 @@ interface TrainCrewState {
   addComplaint: (complaint: Complaint) => void
   updateComplaintStatus: (id: string, status: Complaint['status'], result: string) => void
   updateFoodStock: (id: string, delta: number) => void
-  addSalesRecord: (record: SalesRecord) => void
+  addSalesRecord: (record: SalesRecord) => boolean
   addEmergencyReport: (report: EmergencyReport) => void
   updateEmergencyStatus: (id: string, status: EmergencyReport['status']) => void
   toggleBroadcast: (id: string) => void
@@ -207,10 +211,10 @@ const mockBroadcastItems: BroadcastItem[] = [
 ]
 
 const mockHandoverNotes: HandoverNote[] = [
-  { id: '1', content: '7号车厢空调故障已联系机械师，尚未完全修复，下一班需跟进', category: '设备异常', author: '赵刚', time: '11:30', confirmed: false },
-  { id: '2', content: '10车旅客心脏不适已得到初步处理，需下一班持续关注', category: '重点旅客', author: '陈静', time: '11:35', confirmed: false },
-  { id: '3', content: '5车发现遗失黑色双肩包，已登记待认领', category: '遗失物品', author: '赵刚', time: '11:40', confirmed: false },
-  { id: '4', content: '巧克力库存低于阈值，需补货', category: '物资补给', author: '周敏', time: '11:45', confirmed: false },
+  { id: '1', content: '7号车厢空调故障已联系机械师，尚未完全修复，下一班需跟进', category: '设备异常', author: '赵刚', time: '11:30', confirmed: false, relatedItems: [{ id: '1', type: '异常上报', title: '7号车厢空调制热异常' }] },
+  { id: '2', content: '10车旅客心脏不适已得到初步处理，需下一班持续关注', category: '重点旅客', author: '陈静', time: '11:35', confirmed: false, relatedItems: [{ id: '2', type: '异常上报', title: '旅客突发心脏不适' }] },
+  { id: '3', content: '5车发现遗失黑色双肩包，已登记待认领', category: '遗失物品', author: '赵刚', time: '11:40', confirmed: false, relatedItems: [{ id: '1', type: '遗失物品', title: '黑色双肩包' }] },
+  { id: '4', content: '巧克力库存低于阈值，需补货', category: '物资补给', author: '周敏', time: '11:45', confirmed: false, relatedItems: [{ id: '8', type: '低库存', title: '巧克力库存不足' }] },
 ]
 
 const mockSignOffEvaluation: SignOffEvaluation = {
@@ -222,7 +226,7 @@ const mockSignOffEvaluation: SignOffEvaluation = {
   time: ''
 }
 
-export const useStore = create<TrainCrewState>((set) => ({
+const DEFAULT_DATA: PersistedData = {
   trainTask: mockTrainTask,
   crewMembers: mockCrewMembers,
   keyPassengers: mockKeyPassengers,
@@ -238,85 +242,210 @@ export const useStore = create<TrainCrewState>((set) => ({
   broadcastItems: mockBroadcastItems,
   handoverNotes: mockHandoverNotes,
   signOffEvaluation: mockSignOffEvaluation,
+}
 
-  signInCrew: (id) => set((state) => ({
-    crewMembers: state.crewMembers.map(m =>
-      m.id === id ? { ...m, signedIn: true, signInTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) } : m
-    )
-  })),
+function loadFromStorage(): PersistedData {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<PersistedData>
+      return { ...DEFAULT_DATA, ...parsed }
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_DATA
+}
 
-  addPatrolRecord: (record) => set((state) => ({
-    patrolRecords: [...state.patrolRecords, record]
-  })),
+function saveToStorage(state: PersistedData) {
+  try {
+    const toSave: PersistedData = {
+      trainTask: state.trainTask,
+      crewMembers: state.crewMembers,
+      keyPassengers: state.keyPassengers,
+      patrolRecords: state.patrolRecords,
+      hygieneChecks: state.hygieneChecks,
+      stationStops: state.stationStops,
+      lostItems: state.lostItems,
+      ticketSupplements: state.ticketSupplements,
+      complaints: state.complaints,
+      foodItems: state.foodItems,
+      salesRecords: state.salesRecords,
+      emergencyReports: state.emergencyReports,
+      broadcastItems: state.broadcastItems,
+      handoverNotes: state.handoverNotes,
+      signOffEvaluation: state.signOffEvaluation,
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
+  } catch {
+    // ignore
+  }
+}
 
-  addHygieneCheck: (check) => set((state) => ({
-    hygieneChecks: [...state.hygieneChecks, check]
-  })),
+const initial = loadFromStorage()
 
-  toggleStationTask: (stopId, taskId) => set((state) => ({
-    stationStops: state.stationStops.map(s =>
-      s.id === stopId ? {
+export const useStore = create<TrainCrewState>((set, get) => ({
+  ...initial,
+
+  signInCrew: (id) => set((state) => {
+    const next = {
+      ...state,
+      crewMembers: state.crewMembers.map(m =>
+        m.id === id ? { ...m, signedIn: true, signInTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) } : m
+      )
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  addPatrolRecord: (record) => set((state) => {
+    const next = { ...state, patrolRecords: [...state.patrolRecords, record] }
+    saveToStorage(next)
+    return next
+  }),
+
+  addHygieneCheck: (check) => set((state) => {
+    const next = { ...state, hygieneChecks: [...state.hygieneChecks, check] }
+    saveToStorage(next)
+    return next
+  }),
+
+  toggleStationTask: (stopId, taskId) => set((state) => {
+    const next = {
+      ...state,
+      stationStops: state.stationStops.map(s =>
+        s.id === stopId ? {
+          ...s,
+          tasks: s.tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t)
+        } : s
+      )
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  addLostItem: (item) => set((state) => {
+    const next = { ...state, lostItems: [...state.lostItems, item] }
+    saveToStorage(next)
+    return next
+  }),
+
+  updateLostItemStatus: (id, status) => set((state) => {
+    const next = {
+      ...state,
+      lostItems: state.lostItems.map(i => i.id === id ? { ...i, status } : i)
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  addTicketSupplement: (ticket) => set((state) => {
+    const next = { ...state, ticketSupplements: [...state.ticketSupplements, ticket] }
+    saveToStorage(next)
+    return next
+  }),
+
+  updateTicketSupplementStatus: (id, status) => set((state) => {
+    const next = {
+      ...state,
+      ticketSupplements: state.ticketSupplements.map(t => t.id === id ? { ...t, status } : t)
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  addComplaint: (complaint) => set((state) => {
+    const next = { ...state, complaints: [...state.complaints, complaint] }
+    saveToStorage(next)
+    return next
+  }),
+
+  updateComplaintStatus: (id, status, result) => set((state) => {
+    const next = {
+      ...state,
+      complaints: state.complaints.map(c => c.id === id ? { ...c, status, result } : c)
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  updateFoodStock: (id, delta) => set((state) => {
+    const next = {
+      ...state,
+      foodItems: state.foodItems.map(f => f.id === id ? { ...f, stock: Math.max(0, f.stock + delta) } : f)
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  addSalesRecord: (record) => {
+    const state = get()
+    const matched = state.foodItems.find(f => f.name === record.item)
+    if (matched && matched.stock < record.quantity) {
+      return false
+    }
+    set((s) => {
+      const next = {
         ...s,
-        tasks: s.tasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t)
-      } : s
-    )
-  })),
+        salesRecords: [...s.salesRecords, record],
+        foodItems: matched
+          ? s.foodItems.map(f => f.id === matched.id ? { ...f, stock: Math.max(0, f.stock - record.quantity) } : f)
+          : s.foodItems,
+      }
+      saveToStorage(next)
+      return next
+    })
+    return true
+  },
 
-  addLostItem: (item) => set((state) => ({
-    lostItems: [...state.lostItems, item]
-  })),
+  addEmergencyReport: (report) => set((state) => {
+    const next = { ...state, emergencyReports: [...state.emergencyReports, report] }
+    saveToStorage(next)
+    return next
+  }),
 
-  updateLostItemStatus: (id, status) => set((state) => ({
-    lostItems: state.lostItems.map(i => i.id === id ? { ...i, status } : i)
-  })),
+  updateEmergencyStatus: (id, status) => set((state) => {
+    const next = {
+      ...state,
+      emergencyReports: state.emergencyReports.map(e => e.id === id ? { ...e, status } : e)
+    }
+    saveToStorage(next)
+    return next
+  }),
 
-  addTicketSupplement: (ticket) => set((state) => ({
-    ticketSupplements: [...state.ticketSupplements, ticket]
-  })),
+  toggleBroadcast: (id) => set((state) => {
+    const next = {
+      ...state,
+      broadcastItems: state.broadcastItems.map(b => b.id === id ? { ...b, broadcasted: !b.broadcasted } : b)
+    }
+    saveToStorage(next)
+    return next
+  }),
 
-  updateTicketSupplementStatus: (id, status) => set((state) => ({
-    ticketSupplements: state.ticketSupplements.map(t => t.id === id ? { ...t, status } : t)
-  })),
+  addBroadcastItem: (item) => set((state) => {
+    const next = { ...state, broadcastItems: [...state.broadcastItems, item] }
+    saveToStorage(next)
+    return next
+  }),
 
-  addComplaint: (complaint) => set((state) => ({
-    complaints: [...state.complaints, complaint]
-  })),
+  addHandoverNote: (note) => set((state) => {
+    const next = { ...state, handoverNotes: [...state.handoverNotes, note] }
+    saveToStorage(next)
+    return next
+  }),
 
-  updateComplaintStatus: (id, status, result) => set((state) => ({
-    complaints: state.complaints.map(c => c.id === id ? { ...c, status, result } : c)
-  })),
+  confirmHandoverNote: (id, confirmer) => set((state) => {
+    const next = {
+      ...state,
+      handoverNotes: state.handoverNotes.map(n => n.id === id ? { ...n, confirmed: true, confirmer } : n)
+    }
+    saveToStorage(next)
+    return next
+  }),
 
-  updateFoodStock: (id, delta) => set((state) => ({
-    foodItems: state.foodItems.map(f => f.id === id ? { ...f, stock: Math.max(0, f.stock + delta) } : f)
-  })),
-
-  addSalesRecord: (record) => set((state) => ({
-    salesRecords: [...state.salesRecords, record]
-  })),
-
-  addEmergencyReport: (report) => set((state) => ({
-    emergencyReports: [...state.emergencyReports, report]
-  })),
-
-  updateEmergencyStatus: (id, status) => set((state) => ({
-    emergencyReports: state.emergencyReports.map(e => e.id === id ? { ...e, status } : e)
-  })),
-
-  toggleBroadcast: (id) => set((state) => ({
-    broadcastItems: state.broadcastItems.map(b => b.id === id ? { ...b, broadcasted: !b.broadcasted } : b)
-  })),
-
-  addBroadcastItem: (item) => set((state) => ({
-    broadcastItems: [...state.broadcastItems, item]
-  })),
-
-  addHandoverNote: (note) => set((state) => ({
-    handoverNotes: [...state.handoverNotes, note]
-  })),
-
-  confirmHandoverNote: (id, confirmer) => set((state) => ({
-    handoverNotes: state.handoverNotes.map(n => n.id === id ? { ...n, confirmed: true, confirmer } : n)
-  })),
-
-  setSignOffEvaluation: (evaluation) => set({ signOffEvaluation: evaluation }),
+  setSignOffEvaluation: (evaluation) => set((state) => {
+    const next = { ...state, signOffEvaluation: evaluation }
+    saveToStorage(next)
+    return next
+  }),
 }))

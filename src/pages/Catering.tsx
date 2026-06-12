@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useStore } from '@/store'
 import type { FoodItem, SalesRecord as SalesRecordType } from '@/types'
 import {
   UtensilsCrossed, ShoppingCart, Plus, Minus, AlertTriangle,
-  DollarSign, Receipt, TrendingUp, Package
+  DollarSign, Receipt, TrendingUp, Package, Filter, AlertOctagon
 } from 'lucide-react'
 
 type TabKey = 'stock' | 'sales'
@@ -121,16 +121,23 @@ function StockTab({ foodItems, updateFoodStock, categoryFilter, setCategoryFilte
   )
 }
 
+type TimeFilter = '全部' | '最近1小时' | '上午' | '下午'
+type PaymentFilter = '全部' | SalesRecordType['payment']
+
 function SalesTab({ foodItems, salesRecords, addSalesRecord, updateFoodStock }: {
   foodItems: FoodItem[]
   salesRecords: SalesRecordType[]
-  addSalesRecord: (record: SalesRecordType) => void
+  addSalesRecord: (record: SalesRecordType) => boolean
   updateFoodStock: (id: string, delta: number) => void
 }) {
   const [selectedItem, setSelectedItem] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [payment, setPayment] = useState<SalesRecordType['payment']>('微信')
   const [carriage, setCarriage] = useState('')
+  const [carriageFilter, setCarriageFilter] = useState<string>('全部')
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('全部')
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('全部')
+  const [errorMsg, setErrorMsg] = useState('')
 
   const selectedFood = foodItems.find(f => f.id === selectedItem)
   const amount = selectedFood ? selectedFood.price * quantity : 0
@@ -138,6 +145,47 @@ function SalesTab({ foodItems, salesRecords, addSalesRecord, updateFoodStock }: 
   const totalSales = salesRecords.reduce((sum, r) => sum + r.amount, 0)
   const totalOrders = salesRecords.length
   const avgOrder = totalOrders > 0 ? (totalSales / totalOrders).toFixed(1) : '0'
+
+  const uniqueCarriages = useMemo(() => {
+    const set = new Set(salesRecords.map(r => r.carriage))
+    return ['全部', ...Array.from(set)]
+  }, [salesRecords])
+
+  const paymentOptions: PaymentFilter[] = ['全部', '现金', '微信', '支付宝', '刷卡']
+  const timeOptions: TimeFilter[] = ['全部', '最近1小时', '上午', '下午']
+
+  const filteredRecords = useMemo(() => {
+    const now = new Date()
+    return salesRecords.filter(record => {
+      if (carriageFilter !== '全部' && record.carriage !== carriageFilter) {
+        return false
+      }
+      if (paymentFilter !== '全部' && record.payment !== paymentFilter) {
+        return false
+      }
+      if (timeFilter !== '全部') {
+        const [hh, mm] = record.time.split(':').map(Number)
+        if (timeFilter === '上午') {
+          if (hh >= 12) return false
+        } else if (timeFilter === '下午') {
+          if (hh < 12) return false
+        } else if (timeFilter === '最近1小时') {
+          const recordTime = new Date()
+          recordTime.setHours(hh, mm, 0, 0)
+          const diffMs = now.getTime() - recordTime.getTime()
+          const diffHours = diffMs / (1000 * 60 * 60)
+          if (diffHours > 1 || diffHours < 0) return false
+        }
+      }
+      return true
+    })
+  }, [salesRecords, carriageFilter, paymentFilter, timeFilter])
+
+  const resetFilters = () => {
+    setCarriageFilter('全部')
+    setPaymentFilter('全部')
+    setTimeFilter('全部')
+  }
 
   const handleSubmit = () => {
     if (!selectedFood || !carriage || quantity <= 0) return
@@ -152,7 +200,13 @@ function SalesTab({ foodItems, salesRecords, addSalesRecord, updateFoodStock }: 
       time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
     }
 
-    addSalesRecord(record)
+    const success = addSalesRecord(record)
+    if (!success) {
+      setErrorMsg('库存不足')
+      setTimeout(() => setErrorMsg(''), 3000)
+      return
+    }
+
     updateFoodStock(selectedFood.id, -quantity)
 
     setSelectedItem('')
@@ -257,6 +311,12 @@ function SalesTab({ foodItems, salesRecords, addSalesRecord, updateFoodStock }: 
                   <span className="text-slate-500">合计金额</span>
                   <span className="text-lg font-bold text-blue-600">¥{amount}</span>
                 </div>
+                {errorMsg && (
+                  <div className="mb-3 p-2.5 rounded-lg bg-red-50 border border-red-200 flex items-center gap-2 text-red-700 text-xs">
+                    <AlertOctagon className="w-4 h-4 flex-shrink-0" />
+                    {errorMsg}
+                  </div>
+                )}
                 <button
                   onClick={handleSubmit}
                   disabled={!selectedFood || !carriage}
@@ -272,9 +332,58 @@ function SalesTab({ foodItems, salesRecords, addSalesRecord, updateFoodStock }: 
 
         <div className="lg:col-span-3">
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100">
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">销售记录</h3>
             </div>
+
+            <div className="px-5 py-3 border-b border-slate-100 flex flex-wrap gap-3 items-center">
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <Filter className="w-4 h-4" />
+              </div>
+              <div className="bg-white rounded border border-slate-200 px-3 py-1.5 flex items-center gap-2">
+                <label className="text-xs text-slate-500">车厢</label>
+                <select
+                  value={carriageFilter}
+                  onChange={e => setCarriageFilter(e.target.value)}
+                  className="text-sm bg-transparent focus:outline-none text-slate-700"
+                >
+                  {uniqueCarriages.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="bg-white rounded border border-slate-200 px-3 py-1.5 flex items-center gap-2">
+                <label className="text-xs text-slate-500">支付方式</label>
+                <select
+                  value={paymentFilter}
+                  onChange={e => setPaymentFilter(e.target.value as PaymentFilter)}
+                  className="text-sm bg-transparent focus:outline-none text-slate-700"
+                >
+                  {paymentOptions.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="bg-white rounded border border-slate-200 px-3 py-1.5 flex items-center gap-2">
+                <label className="text-xs text-slate-500">时间</label>
+                <select
+                  value={timeFilter}
+                  onChange={e => setTimeFilter(e.target.value as TimeFilter)}
+                  className="text-sm bg-transparent focus:outline-none text-slate-700"
+                >
+                  {timeOptions.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={resetFilters}
+                className="ml-auto px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded border border-slate-200 transition-colors"
+              >
+                重置筛选
+              </button>
+            </div>
+
             <div className="overflow-auto max-h-[420px]">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 sticky top-0">
@@ -288,7 +397,7 @@ function SalesTab({ foodItems, salesRecords, addSalesRecord, updateFoodStock }: 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {salesRecords.slice().reverse().map(record => (
+                  {filteredRecords.slice().reverse().map(record => (
                     <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-4 py-2.5 text-slate-800 font-medium">{record.item}</td>
                       <td className="px-4 py-2.5 text-center text-slate-600">{record.quantity}</td>

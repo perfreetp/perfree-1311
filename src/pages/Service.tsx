@@ -78,6 +78,20 @@ export default function Service() {
 
   const [expandedComplaint, setExpandedComplaint] = useState<string | null>(null)
   const [complaintResult, setComplaintResult] = useState<Record<string, string>>({})
+  const [ticketAmountError, setTicketAmountError] = useState(false)
+
+  const handleAmountChange = (value: string) => {
+    const sanitized = value.replace(/[^\d.]/g, '')
+    const match = sanitized.match(/^\d*\.?\d{0,2}/)
+    const finalValue = match ? match[0] : ''
+    setTicketForm({ ...ticketForm, amount: finalValue })
+    if (finalValue) {
+      const num = Number(finalValue)
+      setTicketAmountError(!(num > 0 && isFinite(num)))
+    } else {
+      setTicketAmountError(false)
+    }
+  }
 
   const handleAddLostItem = () => {
     if (!lostForm.description || !lostForm.location) return
@@ -95,16 +109,22 @@ export default function Service() {
 
   const handleAddTicket = () => {
     if (!ticketForm.passenger || !ticketForm.amount) return
+    const amountNum = Number(ticketForm.amount)
+    if (!(amountNum > 0 && isFinite(amountNum))) {
+      setTicketAmountError(true)
+      return
+    }
     addTicketSupplement({
       id: Date.now().toString(),
       passenger: ticketForm.passenger,
       carriage: ticketForm.carriage,
       seat: ticketForm.seat,
       type: ticketForm.type,
-      amount: Number(ticketForm.amount),
+      amount: amountNum,
       status: '待处理',
     })
     setTicketForm({ passenger: '', carriage: '', seat: '', type: '无票乘车', amount: '' })
+    setTicketAmountError(false)
   }
 
   const handleMoveComplaint = (id: string, newStatus: '处理中' | '已解决') => {
@@ -302,13 +322,20 @@ export default function Service() {
                   <option value="越站乘车">越站乘车</option>
                   <option value="变更席别">变更席别</option>
                 </select>
-                <input
-                  type="number"
-                  value={ticketForm.amount}
-                  onChange={(e) => setTicketForm({ ...ticketForm, amount: e.target.value })}
-                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                  placeholder="金额(元)"
-                />
+                <div className="flex flex-col">
+                  <input
+                    type="text"
+                    value={ticketForm.amount}
+                    onChange={(e) => handleAmountChange(e.target.value)}
+                    className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent ${
+                      ticketAmountError ? 'border-red-400' : 'border-slate-300'
+                    }`}
+                    placeholder="金额(元)"
+                  />
+                  {ticketAmountError && (
+                    <span className="text-xs text-red-500 mt-1">请输入有效正数金额</span>
+                  )}
+                </div>
                 <button
                   onClick={handleAddTicket}
                   className="flex items-center justify-center gap-1.5 bg-[#3b82f6] hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"

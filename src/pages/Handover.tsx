@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '@/store'
+import type { RelatedItem, RelatedItemType } from '@/types'
 import {
   ClipboardList,
   Star,
@@ -10,6 +11,11 @@ import {
   User,
   FileText,
   MessageSquare,
+  AlertTriangle,
+  PackageSearch,
+  MessageSquareWarning,
+  Package,
+  Link2,
 } from 'lucide-react'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -18,6 +24,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   遗失物品: 'bg-blue-100 text-blue-700',
   物资补给: 'bg-orange-100 text-orange-700',
   其他: 'bg-slate-100 text-slate-700',
+}
+
+const RELATED_ITEM_COLORS: Record<RelatedItemType, string> = {
+  异常上报: 'bg-red-100 text-red-700',
+  投诉记录: 'bg-amber-100 text-amber-700',
+  遗失物品: 'bg-blue-100 text-blue-700',
+  低库存: 'bg-orange-100 text-orange-700',
 }
 
 const CATEGORIES = ['设备异常', '重点旅客', '遗失物品', '物资补给', '其他']
@@ -65,6 +78,10 @@ export default function Handover() {
     addHandoverNote,
     confirmHandoverNote,
     setSignOffEvaluation,
+    emergencyReports,
+    complaints,
+    lostItems,
+    foodItems,
   } = useStore()
 
   const [activeTab, setActiveTab] = useState<'notes' | 'evaluation'>('notes')
@@ -72,6 +89,7 @@ export default function Handover() {
   const [formContent, setFormContent] = useState('')
   const [formCategory, setFormCategory] = useState(CATEGORIES[0])
   const [formAuthor, setFormAuthor] = useState('')
+  const [formRelatedItems, setFormRelatedItems] = useState<RelatedItem[]>([])
 
   const evaluationExists =
     signOffEvaluation.serviceQuality > 0 ||
@@ -90,6 +108,14 @@ export default function Handover() {
   const [summary, setSummary] = useState(signOffEvaluation.summary)
   const [evaluator, setEvaluator] = useState(signOffEvaluation.evaluator)
 
+  const toggleRelatedItem = (item: RelatedItem) => {
+    setFormRelatedItems((prev) =>
+      prev.some((i) => i.id === item.id && i.type === item.type)
+        ? prev.filter((i) => !(i.id === item.id && i.type === item.type))
+        : [...prev, item]
+    )
+  }
+
   const handleAddNote = () => {
     if (!formContent.trim() || !formAuthor.trim()) return
     addHandoverNote({
@@ -99,10 +125,12 @@ export default function Handover() {
       author: formAuthor,
       time: new Date().toLocaleString('zh-CN'),
       confirmed: false,
+      relatedItems: formRelatedItems.length > 0 ? formRelatedItems : undefined,
     })
     setFormContent('')
     setFormCategory(CATEGORIES[0])
     setFormAuthor('')
+    setFormRelatedItems([])
     setShowForm(false)
   }
 
@@ -224,6 +252,163 @@ export default function Handover() {
                       />
                     </div>
                   </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      关联待处理事项
+                    </label>
+                    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      {emergencyReports.filter((e) => e.status !== '已处理').length > 0 && (
+                        <div>
+                          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-red-600">
+                            <AlertTriangle size={14} />
+                            异常上报
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {emergencyReports
+                              .filter((e) => e.status !== '已处理')
+                              .map((e) => {
+                                const item: RelatedItem = {
+                                  id: e.id,
+                                  type: '异常上报',
+                                  title: `${e.location} ${e.type}`,
+                                }
+                                const selected = formRelatedItems.some(
+                                  (i) => i.id === item.id && i.type === item.type
+                                )
+                                return (
+                                  <button
+                                    key={`${item.type}-${item.id}`}
+                                    type="button"
+                                    onClick={() => toggleRelatedItem(item)}
+                                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                      selected
+                                        ? 'bg-[#1a365d] text-white'
+                                        : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {item.title}
+                                  </button>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      )}
+                      {complaints.filter((c) => c.status !== '已解决').length > 0 && (
+                        <div>
+                          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                            <MessageSquareWarning size={14} />
+                            投诉记录
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {complaints
+                              .filter((c) => c.status !== '已解决')
+                              .map((c) => {
+                                const item: RelatedItem = {
+                                  id: c.id,
+                                  type: '投诉记录',
+                                  title: c.content,
+                                }
+                                const selected = formRelatedItems.some(
+                                  (i) => i.id === item.id && i.type === item.type
+                                )
+                                return (
+                                  <button
+                                    key={`${item.type}-${item.id}`}
+                                    type="button"
+                                    onClick={() => toggleRelatedItem(item)}
+                                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                      selected
+                                        ? 'bg-[#1a365d] text-white'
+                                        : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {item.title}
+                                  </button>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      )}
+                      {lostItems.filter((l) => l.status === '待认领' || l.status === '已登记').length > 0 && (
+                        <div>
+                          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-blue-600">
+                            <PackageSearch size={14} />
+                            遗失物品
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {lostItems
+                              .filter((l) => l.status === '待认领' || l.status === '已登记')
+                              .map((l) => {
+                                const item: RelatedItem = {
+                                  id: l.id,
+                                  type: '遗失物品',
+                                  title: l.description,
+                                }
+                                const selected = formRelatedItems.some(
+                                  (i) => i.id === item.id && i.type === item.type
+                                )
+                                return (
+                                  <button
+                                    key={`${item.type}-${item.id}`}
+                                    type="button"
+                                    onClick={() => toggleRelatedItem(item)}
+                                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                      selected
+                                        ? 'bg-[#1a365d] text-white'
+                                        : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {item.title}
+                                  </button>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      )}
+                      {foodItems.filter((f) => f.stock <= f.threshold).length > 0 && (
+                        <div>
+                          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-orange-600">
+                            <Package size={14} />
+                            低库存
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {foodItems
+                              .filter((f) => f.stock <= f.threshold)
+                              .map((f) => {
+                                const item: RelatedItem = {
+                                  id: f.id,
+                                  type: '低库存',
+                                  title: `${f.name}库存${f.stock}件`,
+                                }
+                                const selected = formRelatedItems.some(
+                                  (i) => i.id === item.id && i.type === item.type
+                                )
+                                return (
+                                  <button
+                                    key={`${item.type}-${item.id}`}
+                                    type="button"
+                                    onClick={() => toggleRelatedItem(item)}
+                                    className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                                      selected
+                                        ? 'bg-[#1a365d] text-white'
+                                        : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {item.title}
+                                  </button>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      )}
+                      {emergencyReports.filter((e) => e.status !== '已处理').length === 0 &&
+                        complaints.filter((c) => c.status !== '已解决').length === 0 &&
+                        lostItems.filter((l) => l.status === '待认领' || l.status === '已登记').length === 0 &&
+                        foodItems.filter((f) => f.stock <= f.threshold).length === 0 && (
+                          <p className="text-xs text-slate-400">暂无待处理事项</p>
+                        )}
+                    </div>
+                  </div>
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setShowForm(false)}
@@ -275,6 +460,21 @@ export default function Handover() {
                   <p className="mb-3 text-sm leading-relaxed text-slate-700">
                     {note.content}
                   </p>
+                  {note.relatedItems && note.relatedItems.length > 0 && (
+                    <div className="mb-3 flex items-start gap-1.5">
+                      <Link2 size={12} className="mt-0.5 text-slate-400" />
+                      <div className="flex flex-wrap gap-1.5">
+                        {note.relatedItems.map((item) => (
+                          <span
+                            key={`${item.type}-${item.id}`}
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${RELATED_ITEM_COLORS[item.type]}`}
+                          >
+                            {item.title}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 text-xs text-slate-400">
                       <span className="flex items-center gap-1">

@@ -130,6 +130,14 @@ export interface BroadcastItem {
   category: '到站提醒' | '寻人启事' | '安全提示' | '其他'
 }
 
+export type RelatedItemType = '异常上报' | '投诉记录' | '遗失物品' | '低库存'
+
+export interface RelatedItem {
+  id: string
+  type: RelatedItemType
+  title: string
+}
+
 export interface HandoverNote {
   id: string
   content: string
@@ -138,6 +146,7 @@ export interface HandoverNote {
   time: string
   confirmed: boolean
   confirmer?: string
+  relatedItems?: RelatedItem[]
 }
 
 export interface SignOffEvaluation {

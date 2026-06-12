@@ -20,6 +20,8 @@ interface HistoryRow {
   time: string
   status: string
   handler: string
+  handoverConfirmed?: boolean
+  handoverConfirmer?: string
 }
 
 export default function Statistics() {
@@ -56,7 +58,9 @@ export default function Statistics() {
   }, [complaints])
 
   const totalTicketAmount = useMemo(() => {
-    return ticketSupplements.reduce((sum, t) => sum + t.amount, 0)
+    return ticketSupplements
+      .filter(t => t.status === '已完成')
+      .reduce((sum, t) => sum + t.amount, 0)
   }, [ticketSupplements])
 
   const complaintByCategory = useMemo(() => {
@@ -124,6 +128,8 @@ export default function Statistics() {
           time: h.time,
           status: h.confirmed ? '已确认' : '待确认',
           handler: h.author,
+          handoverConfirmed: h.confirmed,
+          handoverConfirmer: h.confirmer,
         })
       })
     }
@@ -301,13 +307,14 @@ export default function Statistics() {
                   <th className="text-left px-4 py-3 font-semibold text-[#1a365d]">位置/分类</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#1a365d]">时间</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#1a365d]">状态</th>
+                  <th className="text-left px-4 py-3 font-semibold text-[#1a365d]">交接状态</th>
                   <th className="text-left px-4 py-3 font-semibold text-[#1a365d]">处理人</th>
                 </tr>
               </thead>
               <tbody>
                 {historyRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12 text-slate-400">暂无匹配记录</td>
+                    <td colSpan={7} className="text-center py-12 text-slate-400">暂无匹配记录</td>
                   </tr>
                 ) : (
                   historyRows.map(row => (
@@ -324,6 +331,21 @@ export default function Statistics() {
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(row.status)}`}>
                           {row.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {row.type === '交接' ? (
+                          row.handoverConfirmed ? (
+                            <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                              已交接 (确认人: {row.handoverConfirmer})
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                              待交接
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-500">{row.handler}</td>
                     </tr>
