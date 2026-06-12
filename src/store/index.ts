@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import type {
   TrainTask, CrewMember, KeyPassenger, PatrolRecord, HygieneCheck,
   StationStop, LostItem, TicketSupplement, Complaint, FoodItem,
-  SalesRecord, EmergencyReport, BroadcastItem, HandoverNote, SignOffEvaluation
+  SalesRecord, EmergencyReport, BroadcastItem, HandoverNote, SignOffEvaluation,
+  HandoverBatch, PendingTaskHandoverRecord, BatchRoleConfirmation
 } from '@/types'
 
 const STORAGE_KEY = 'train-crew-data'
@@ -23,6 +24,8 @@ interface PersistedData {
   broadcastItems: BroadcastItem[]
   handoverNotes: HandoverNote[]
   signOffEvaluation: SignOffEvaluation
+  handoverBatches: HandoverBatch[]
+  currentBatchId: string | null
 }
 
 interface TrainCrewState extends PersistedData {
@@ -45,6 +48,11 @@ interface TrainCrewState extends PersistedData {
   addHandoverNote: (note: HandoverNote) => void
   confirmHandoverNote: (id: string, confirmer: string) => void
   setSignOffEvaluation: (evaluation: SignOffEvaluation) => void
+  createHandoverBatch: (data: { handoverPerson: string; successorPerson: string; pendingTaskRecords: PendingTaskHandoverRecord[] }) => string
+  updateHandoverBatch: (id: string, updates: Partial<HandoverBatch>) => void
+  confirmRoleInBatch: (batchId: string, role: string, confirmer: string) => void
+  completeHandoverBatch: (id: string) => void
+  setCurrentBatchId: (id: string | null) => void
 }
 
 const mockTrainTask: TrainTask = {
@@ -202,12 +210,12 @@ const mockEmergencyReports: EmergencyReport[] = [
 ]
 
 const mockBroadcastItems: BroadcastItem[] = [
-  { id: '1', content: '各位旅客，列车即将到达济南西站，请在济南西站下车的旅客提前做好准备', scheduledTime: '08:25', broadcasted: true, category: '到站提醒' },
-  { id: '2', content: '请5车旅客赵先生前往餐车，有旅客寻找', scheduledTime: '08:50', broadcasted: true, category: '寻人启事' },
-  { id: '3', content: '各位旅客，列车正在高速运行，请注意看管好随身物品', scheduledTime: '09:00', broadcasted: true, category: '安全提示' },
-  { id: '4', content: '列车即将到达徐州东站，请在徐州东站下车的旅客提前做好准备', scheduledTime: '09:35', broadcasted: false, category: '到站提醒' },
-  { id: '5', content: '各位旅客，近期雷雨天气，列车可能限速运行，敬请谅解', scheduledTime: '09:40', broadcasted: false, category: '安全提示' },
-  { id: '6', content: '列车即将到达南京南站，请在南京南站下车的旅客提前做好准备', scheduledTime: '10:42', broadcasted: false, category: '到站提醒' },
+  { id: '1', content: '各位旅客，列车即将到达济南西站，请在济南西站下车的旅客提前做好准备', scheduledTime: '08:25', scheduledDateTime: '2026-06-12 08:25', broadcasted: true, actualPlayTime: '2026-06-12 08:24', category: '到站提醒' },
+  { id: '2', content: '请5车旅客赵先生前往餐车，有旅客寻找', scheduledTime: '08:50', scheduledDateTime: '2026-06-12 08:50', broadcasted: true, actualPlayTime: '2026-06-12 08:49', category: '寻人启事' },
+  { id: '3', content: '各位旅客，列车正在高速运行，请注意看管好随身物品', scheduledTime: '09:00', scheduledDateTime: '2026-06-12 09:00', broadcasted: true, actualPlayTime: '2026-06-12 08:59', category: '安全提示' },
+  { id: '4', content: '列车即将到达徐州东站，请在徐州东站下车的旅客提前做好准备', scheduledTime: '09:35', scheduledDateTime: '2026-06-12 09:35', broadcasted: false, category: '到站提醒' },
+  { id: '5', content: '各位旅客，近期雷雨天气，列车可能限速运行，敬请谅解', scheduledTime: '09:40', scheduledDateTime: '2026-06-12 09:40', broadcasted: false, category: '安全提示' },
+  { id: '6', content: '列车即将到达南京南站，请在南京南站下车的旅客提前做好准备', scheduledTime: '10:42', scheduledDateTime: '2026-06-12 10:42', broadcasted: false, category: '到站提醒' },
 ]
 
 const mockHandoverNotes: HandoverNote[] = [
@@ -242,6 +250,8 @@ const DEFAULT_DATA: PersistedData = {
   broadcastItems: mockBroadcastItems,
   handoverNotes: mockHandoverNotes,
   signOffEvaluation: mockSignOffEvaluation,
+  handoverBatches: [],
+  currentBatchId: null,
 }
 
 function loadFromStorage(): PersistedData {
@@ -275,6 +285,8 @@ function saveToStorage(state: PersistedData) {
       broadcastItems: state.broadcastItems,
       handoverNotes: state.handoverNotes,
       signOffEvaluation: state.signOffEvaluation,
+      handoverBatches: state.handoverBatches,
+      currentBatchId: state.currentBatchId,
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
   } catch {
@@ -418,16 +430,24 @@ export const useStore = create<TrainCrewState>((set, get) => ({
   }),
 
   toggleBroadcast: (id) => set((state) => {
+    const now = new Date().toLocaleString('zh-CN')
     const next = {
       ...state,
-      broadcastItems: state.broadcastItems.map(b => b.id === id ? { ...b, broadcasted: !b.broadcasted } : b)
+      broadcastItems: state.broadcastItems.map(b => b.id === id
+        ? { ...b, broadcasted: !b.broadcasted, actualPlayTime: !b.broadcasted ? now : b.actualPlayTime }
+        : b
+      )
     }
     saveToStorage(next)
     return next
   }),
 
   addBroadcastItem: (item) => set((state) => {
-    const next = { ...state, broadcastItems: [...state.broadcastItems, item] }
+    const enriched: BroadcastItem = {
+      ...item,
+      scheduledDateTime: item.scheduledDateTime || `${state.trainTask.date} ${item.scheduledTime}`,
+    }
+    const next = { ...state, broadcastItems: [...state.broadcastItems, enriched] }
     saveToStorage(next)
     return next
   }),
@@ -488,6 +508,133 @@ export const useStore = create<TrainCrewState>((set, get) => ({
 
   setSignOffEvaluation: (evaluation) => set((state) => {
     const next = { ...state, signOffEvaluation: evaluation }
+    saveToStorage(next)
+    return next
+  }),
+
+  createHandoverBatch: (data) => {
+    const state = get()
+    const now = new Date()
+    const batchId = String(Date.now())
+    const batchNo = `${state.trainTask.trainNo}-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}-${String(state.handoverBatches.length + 1).padStart(3, '0')}`
+
+    const unclosedItems = [
+      ...state.emergencyReports.filter(e => e.status !== '已处理').map(e => ({
+        id: e.id, type: '异常上报', title: e.type, status: e.status, handler: e.reporter, location: e.location, handoverInfo: e.handoverInfo,
+      })),
+      ...state.complaints.filter(c => c.status !== '已解决').map(c => ({
+        id: c.id, type: '投诉记录', title: c.content, status: c.status, handler: c.handler, location: c.category, handoverInfo: c.handoverInfo,
+      })),
+      ...state.lostItems.filter(l => l.status === '待认领' || l.status === '已登记').map(l => ({
+        id: l.id, type: '遗失物品', title: l.description, status: l.status, handler: l.handler, location: l.location, handoverInfo: l.handoverInfo,
+      })),
+      ...state.foodItems.filter(f => f.stock <= f.threshold).map(f => ({
+        id: f.id, type: '低库存', title: `${f.name}（库存${f.stock}）`, status: f.stock <= f.threshold / 2 ? '严重不足' : '库存偏低', handler: '餐售员', location: f.category, handoverInfo: f.handoverInfo,
+      })),
+      ...state.broadcastItems.filter(b => !b.broadcasted).map(b => ({
+        id: b.id, type: '广播事项', title: b.content, status: '待播放', handler: '列车长', location: b.category,
+      })),
+    ]
+
+    const roleConfirmations: BatchRoleConfirmation[] = state.crewMembers
+      .filter(m => m.role !== '安全员')
+      .map(m => {
+        const roleItemIds = unclosedItems.filter(item => {
+          if (item.handler === m.name) return true
+          if (m.role === '餐售员' && item.type === '低库存') return true
+          if (m.role === '列车长' && item.type === '广播事项') return true
+          const carriageMatch = m.role.match(/乘务员-(\d+)-(\d+)车/)
+          if (carriageMatch && item.location) {
+            const locMatch = item.location.match(/(\d+)车/)
+            if (locMatch) {
+              const carNo = parseInt(locMatch[1])
+              const from = parseInt(carriageMatch[1])
+              const to = parseInt(carriageMatch[2])
+              return carNo >= from && carNo <= to
+            }
+          }
+          return false
+        }).map(i => i.id)
+        return {
+          role: m.role,
+          name: m.name,
+          confirmed: false,
+          itemIds: roleItemIds,
+        }
+      })
+
+    const batch: HandoverBatch = {
+      id: batchId,
+      batchNo,
+      trainNo: state.trainTask.trainNo,
+      departure: state.trainTask.departure,
+      arrival: state.trainTask.arrival,
+      date: state.trainTask.date,
+      handoverPerson: data.handoverPerson,
+      successorPerson: data.successorPerson,
+      createdAt: now.toLocaleString('zh-CN'),
+      status: 'draft',
+      unclosedItems,
+      confirmedNotes: state.handoverNotes.filter(n => n.confirmed),
+      pendingTaskRecords: data.pendingTaskRecords,
+      roleConfirmations,
+    }
+
+    set((s) => {
+      const next = {
+        ...s,
+        handoverBatches: [...s.handoverBatches, batch],
+        currentBatchId: batchId,
+      }
+      saveToStorage(next)
+      return next
+    })
+
+    return batchId
+  },
+
+  updateHandoverBatch: (id, updates) => set((state) => {
+    const next = {
+      ...state,
+      handoverBatches: state.handoverBatches.map(b => b.id === id ? { ...b, ...updates } : b),
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  confirmRoleInBatch: (batchId, role, confirmer) => set((state) => {
+    const now = new Date().toLocaleString('zh-CN')
+    const next = {
+      ...state,
+      handoverBatches: state.handoverBatches.map(b => {
+        if (b.id !== batchId) return b
+        return {
+          ...b,
+          roleConfirmations: b.roleConfirmations.map(rc =>
+            rc.role === role ? { ...rc, confirmed: true, confirmTime: now, name: confirmer || rc.name } : rc
+          ),
+        }
+      }),
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  completeHandoverBatch: (id) => set((state) => {
+    const now = new Date().toLocaleString('zh-CN')
+    const next = {
+      ...state,
+      handoverBatches: state.handoverBatches.map(b =>
+        b.id === id ? { ...b, status: 'completed' as const, completedAt: now } : b
+      ),
+      currentBatchId: null,
+    }
+    saveToStorage(next)
+    return next
+  }),
+
+  setCurrentBatchId: (id) => set((state) => {
+    const next = { ...state, currentBatchId: id }
     saveToStorage(next)
     return next
   }),

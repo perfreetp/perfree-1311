@@ -138,7 +138,9 @@ export interface BroadcastItem {
   id: string
   content: string
   scheduledTime: string
+  scheduledDateTime: string
   broadcasted: boolean
+  actualPlayTime?: string
   category: '到站提醒' | '寻人启事' | '安全提示' | '其他'
 }
 
@@ -169,4 +171,51 @@ export interface SignOffEvaluation {
   summary: string
   evaluator: string
   time: string
+}
+
+export type PendingTaskHandoverType = 'verbal' | 'written' | 'pending'
+
+export interface PendingTaskHandoverRecord {
+  id: string
+  type: '异常上报' | '投诉记录' | '遗失物品' | '低库存' | '广播事项'
+  title: string
+  handoverType: PendingTaskHandoverType
+}
+
+export interface BatchSnapshotItem {
+  id: string
+  type: string
+  title: string
+  status: string
+  handler: string
+  location?: string
+  handoverInfo?: HandoverInfo
+}
+
+export interface BatchRoleConfirmation {
+  role: string
+  name: string
+  confirmed: boolean
+  confirmTime?: string
+  itemIds: string[]
+}
+
+export interface HandoverBatch {
+  id: string
+  batchNo: string
+  trainNo: string
+  departure: string
+  arrival: string
+  date: string
+  handoverPerson: string
+  successorPerson: string
+  createdAt: string
+  submittedAt?: string
+  completedAt?: string
+  status: 'draft' | 'submitted' | 'reviewing' | 'completed'
+  unclosedItems: BatchSnapshotItem[]
+  confirmedNotes: HandoverNote[]
+  evaluation?: SignOffEvaluation
+  pendingTaskRecords: PendingTaskHandoverRecord[]
+  roleConfirmations: BatchRoleConfirmation[]
 }

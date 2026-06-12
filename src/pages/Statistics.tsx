@@ -10,7 +10,7 @@ const PAYMENT_COLORS: Record<string, string> = {
   '刷卡': '#8b5cf6',
 }
 
-type HistoryTypeFilter = '全部' | '异常上报' | '投诉记录' | '遗失物品' | '补票记录' | '广播事项' | '低库存' | '交接事项'
+type HistoryTypeFilter = '全部' | '异常上报' | '投诉记录' | '遗失物品' | '补票记录' | '广播事项' | '低库存' | '交接事项' | '交接批次'
 type StatusFilter = '全部' | string
 type TimeRangeFilter = '全部' | '今天' | '上午' | '下午' | '最近1小时'
 
@@ -48,6 +48,7 @@ export default function Statistics() {
     broadcastItems,
     handoverNotes,
     foodItems,
+    handoverBatches,
   } = useStore()
 
   const patrolRate = useMemo(() => {
@@ -186,8 +187,8 @@ export default function Statistics() {
           typeKey: '广播事项',
           content: b.content,
           category: b.category,
-          location: '-',
-          time: b.scheduledTime,
+          location: b.actualPlayTime ? `已播：${b.actualPlayTime}` : `计划：${b.scheduledDateTime}`,
+          time: b.scheduledDateTime,
           status: b.broadcasted ? '已播放' : '待播放',
           handler: '-',
         })
@@ -237,6 +238,23 @@ export default function Statistics() {
       })
     }
 
+    if (filterType === '全部' || filterType === '交接批次') {
+      handoverBatches.forEach(b => {
+        const statusText = b.status === 'completed' ? '已完成' : b.status === 'submitted' ? '已提交' : b.status === 'reviewing' ? '复核中' : '草稿'
+        rows.push({
+          id: b.id,
+          type: '批次',
+          typeKey: '交接批次',
+          content: `批次 ${b.batchNo} · 交班人：${b.handoverPerson} → 接班人：${b.successorPerson} · 未闭环 ${b.unclosedItems.length} 项`,
+          category: '交接批次',
+          location: `${b.departure} → ${b.arrival}`,
+          time: b.createdAt,
+          status: statusText,
+          handler: b.handoverPerson,
+        })
+      })
+    }
+
     let filtered = rows
 
     if (filterStatus !== '全部') {
@@ -255,12 +273,18 @@ export default function Statistics() {
       const now = new Date()
       filtered = filtered.filter(r => {
         if (!r.time || r.time === '-') return false
-        const parts = r.time.split(/[:：]/)
-        if (parts.length < 2) return true
-        const hh = parseInt(parts[0])
-        const mm = parseInt(parts[1])
-        if (isNaN(hh) || isNaN(mm)) return true
-
+        let hh = -1, mm = -1
+        const fullMatch = r.time.match(/(\d{1,2}):(\d{2})/)
+        if (fullMatch) {
+          hh = parseInt(fullMatch[1])
+          mm = parseInt(fullMatch[2])
+        } else {
+          const parts = r.time.split(/[:：]/)
+          if (parts.length < 2) return true
+          hh = parseInt(parts[0])
+          mm = parseInt(parts[1])
+        }
+        if (isNaN(hh) || isNaN(mm) || hh < 0 || hh > 23) return true
         if (filterTimeRange === '上午') return hh < 12
         if (filterTimeRange === '下午') return hh >= 12
         if (filterTimeRange === '最近1小时') {
@@ -284,7 +308,7 @@ export default function Statistics() {
     }
 
     return filtered
-  }, [filterType, filterStatus, filterLocation, filterTimeRange, keyword, emergencyReports, complaints, lostItems, ticketSupplements, broadcastItems, foodItems, handoverNotes])
+  }, [filterType, filterStatus, filterLocation, filterTimeRange, keyword, emergencyReports, complaints, lostItems, ticketSupplements, broadcastItems, foodItems, handoverNotes, handoverBatches])
 
   const kpiCards = [
     { label: '巡视完成率', value: `${patrolRate}%`, icon: ShieldCheck, color: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },
@@ -312,6 +336,9 @@ export default function Statistics() {
       '严重不足': 'bg-red-100 text-red-700',
       '未收款': 'bg-red-100 text-red-700',
       '待处理': 'bg-red-100 text-red-700',
+      '草稿': 'bg-slate-100 text-slate-600',
+      '已提交': 'bg-amber-100 text-amber-700',
+      '复核中': 'bg-blue-100 text-blue-700',
     }
     return map[status] || 'bg-slate-100 text-slate-700'
   }
@@ -326,11 +353,12 @@ export default function Statistics() {
       '广播事项': 'bg-purple-100 text-purple-700',
       '低库存': 'bg-orange-100 text-orange-700',
       '交接事项': 'bg-sky-100 text-sky-700',
+      '交接批次': 'bg-indigo-100 text-indigo-700',
     }
     return map[typeKey] || 'bg-slate-100 text-slate-700'
   }
 
-  const typeOptions: HistoryTypeFilter[] = ['全部', '异常上报', '投诉记录', '遗失物品', '补票记录', '广播事项', '低库存', '交接事项']
+  const typeOptions: HistoryTypeFilter[] = ['全部', '异常上报', '投诉记录', '遗失物品', '补票记录', '广播事项', '低库存', '交接事项', '交接批次']
   const timeRangeOptions: TimeRangeFilter[] = ['全部', '今天', '上午', '下午', '最近1小时']
 
   const handleExport = () => {
